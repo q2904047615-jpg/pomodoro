@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>番茄钟</title>
+<style>
+  :root {
+    --bg: #fff5f3;
+    --card: #ffffff;
+    --accent: #e74c3c;
+    --accent-soft: #ffe2dd;
+    --rest: #2ecc71;
+    --rest-soft: #e1f7e9;
+    --text: #2c2c2c;
+    --muted: #888;
+    --border: #f1d8d3;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 32px 16px;
+  }
+  .app {
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  h1 {
+    margin: 0;
+    text-align: center;
+    font-size: 22px;
+    letter-spacing: 2px;
+    color: var(--accent);
+  }
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 6px 24px rgba(231, 76, 60, 0.08);
+  }
+  .mode-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    justify-content: center;
+  }
+  .mode-tabs button {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    background: transparent;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--muted);
+    transition: all 0.15s;
+  }
+  .mode-tabs button.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  body.rest .mode-tabs button.active { background: var(--rest); border-color: var(--rest); }
+  .timer {
+    font-size: 84px;
+    font-weight: 200;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    margin: 8px 0 16px;
+    user-select: none;
+  }
+  body.rest .timer { color: var(--rest); }
+  .controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+  .controls button {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    cursor: pointer;
+    transition: transform 0.05s, opacity 0.15s;
+  }
+  .controls button:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: white; min-width: 110px; }
+  body.rest .btn-primary { background: var(--rest); }
+  .btn-secondary { background: var(--accent-soft); color: var(--accent); }
+  body.rest .btn-secondary { background: var(--rest-soft); color: var(--rest); }
+  .meta {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 18px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .tasks h2 {
+    margin: 0 0 14px 0;
+    font-size: 16px;
+    color: var(--text);
+  }
+  .add-task {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .add-task input {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+  }
+  .add-task input:focus { border-color: var(--accent); }
+  .add-task button {
+    padding: 10px 16px;
+    border: none;
+    background: var(--accent);
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  ul.task-list { list-style: none; padding: 0; margin: 0; }
+  ul.task-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 4px;
+    border-bottom: 1px solid #f5ecea;
+  }
+  ul.task-list li:last-child { border-bottom: none; }
+  ul.task-list li.active {
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding-left: 10px;
+  }
+  ul.task-list li.done .text { text-decoration: line-through; color: var(--muted); }
+  ul.task-list .text { flex: 1; cursor: pointer; }
+  ul.task-list .count {
+    font-size: 12px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 2px 8px;
+    border-radius: 999px;
+    min-width: 32px;
+    text-align: center;
+  }
+  ul.task-list .delete {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 18px;
+    line-height: 1;
+  }
+  ul.task-list .delete:hover { color: var(--accent); }
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    padding: 16px 0;
+  }
+  .footer-note {
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .footer-note a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>🍅 番茄钟</h1>
+
+  <div class="card">
+    <div class="mode-tabs">
+      <button data-mode="work" class="active">工作 25:00</button>
+      <button data-mode="short">短休 5:00</button>
+      <button data-mode="long">长休 15:00</button>
+    </div>
+    <div class="timer" id="display">25:00</div>
+    <div class="controls">
+      <button class="btn-primary" id="startBtn">开始</button>
+      <button class="btn-secondary" id="resetBtn">重置</button>
+      <button class="btn-secondary" id="skipBtn">跳过</button>
+    </div>
+    <div class="meta">
+      <span id="round">已完成 0 个番茄</span>
+      <span id="currentTask">未选择任务</span>
+    </div>
+  </div>
+
+  <div class="card tasks">
+    <h2>今日任务</h2>
+    <div class="add-task">
+      <input id="taskInput" placeholder="输入任务,回车添加" maxlength="60" />
+      <button id="addBtn">添加</button>
+    </div>
+    <ul class="task-list" id="taskList"></ul>
+    <div class="empty" id="emptyHint">还没有任务,加一个开始专注吧</div>
+  </div>
+
+  <div class="footer-note">点击任务名选中,完成一个工作番茄会给当前任务计 +1</div>
+</div>
+
+<script>
+(() => {
+  const DURATIONS = { work: 25 * 60, short: 5 * 60, long: 15 * 60 };
+  const LABELS = { work: "工作", short: "短休", long: "长休" };
+
+  const display = document.getElementById("display");
+  const startBtn = document.getElementById("startBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const skipBtn = document.getElementById("skipBtn");
+  const tabs = document.querySelectorAll(".mode-tabs button");
+  const roundEl = document.getElementById("round");
+  const currentTaskEl = document.getElementById("currentTask");
+  const taskInput = document.getElementById("taskInput");
+  const addBtn = document.getElementById("addBtn");
+  const taskList = document.getElementById("taskList");
+  const emptyHint = document.getElementById("emptyHint");
+
+  let mode = "work";
+  let remaining = DURATIONS[mode];
+  let timerId = null;
+  let endAt = 0;
+  let completedPomodoros = 0;
+
+  let tasks = loadTasks();
+  let activeTaskId = loadActiveTaskId();
+
+  function loadTasks() {
+    try { return JSON.parse(localStorage.getItem("pomo_tasks") || "[]"); }
+    catch { return []; }
+  }
+  function saveTasks() { localStorage.setItem("pomo_tasks", JSON.stringify(tasks)); }
+  function loadActiveTaskId() { return localStorage.getItem("pomo_active") || null; }
+  function saveActiveTaskId() {
+    if (activeTaskId) localStorage.setItem("pomo_active", activeTaskId);
+    else localStorage.removeItem("pomo_active");
+  }
+
+  function format(sec) {
+    const m = Math.floor(sec / 60).toString().padStart(2, "0");
+    const s = (sec % 60).toString().padStart(2, "0");
+    return `${m}:${s}`;
+  }
+
+  function render() {
+    display.textContent = format(remaining);
+    document.title = `${format(remaining)} · ${LABELS[mode]} · 番茄钟`;
+    document.body.classList.toggle("rest", mode !== "work");
+    tabs.forEach(b => b.classList.toggle("active", b.dataset.mode === mode));
+    startBtn.textContent = timerId ? "暂停" : "开始";
+    roundEl.textContent = `已完成 ${completedPomodoros} 个番茄`;
+
+    const active = tasks.find(t => t.id === activeTaskId);
+    currentTaskEl.textContent = active ? `进行中:${active.text}` : "未选择任务";
+
+    renderTasks();
+  }
+
+  function renderTasks() {
+    taskList.innerHTML = "";
+    if (tasks.length === 0) {
+      emptyHint.style.display = "block";
+      return;
+    }
+    emptyHint.style.display = "none";
+    tasks.forEach(t => {
+      const li = document.createElement("li");
+      if (t.id === activeTaskId) li.classList.add("active");
+      if (t.done) li.classList.add("done");
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = !!t.done;
+      checkbox.addEventListener("change", () => {
+        t.done = checkbox.checked;
+        saveTasks();
+        render();
+      });
+
+      const text = document.createElement("span");
+      text.className = "text";
+      text.textContent = t.text;
+      text.title = "点击设为当前任务";
+      text.addEventListener("click", () => {
+        activeTaskId = (activeTaskId === t.id) ? null : t.id;
+        saveActiveTaskId();
+        render();
+      });
+
+      const count = document.createElement("span");
+      count.className = "count";
+      count.textContent = `🍅 ${t.pomodoros || 0}`;
+
+      const del = document.createElement("button");
+      del.className = "delete";
+      del.textContent = "×";
+      del.title = "删除";
+      del.addEventListener("click", () => {
+        tasks = tasks.filter(x => x.id !== t.id);
+        if (activeTaskId === t.id) activeTaskId = null;
+        saveTasks();
+        saveActiveTaskId();
+        render();
+      });
+
+      li.append(checkbox, text, count, del);
+      taskList.appendChild(li);
+    });
+  }
+
+  function tick() {
+    const now = Date.now();
+    remaining = Math.max(0, Math.round((endAt - now) / 1000));
+    render();
+    if (remaining <= 0) finish();
+  }
+
+  function start() {
+    if (timerId) {
+      clearInterval(timerId);
+      timerId = null;
+      render();
+      return;
+    }
+    endAt = Date.now() + remaining * 1000;
+    timerId = setInterval(tick, 250);
+    requestNotificationPermission();
+    render();
+  }
+
+  function reset() {
+    if (timerId) { clearInterval(timerId); timerId = null; }
+    remaining = DURATIONS[mode];
+    render();
+  }
+
+  function setMode(next, keepRound = false) {
+    if (timerId) { clearInterval(timerId); timerId = null; }
+    mode = next;
+    remaining = DURATIONS[mode];
+    render();
+  }
+
+  function finish() {
+    clearInterval(timerId);
+    timerId = null;
+    beep();
+    notify();
+
+    if (mode === "work") {
+      completedPomodoros += 1;
+      const active = tasks.find(t => t.id === activeTaskId);
+      if (active) {
+        active.pomodoros = (active.pomodoros || 0) + 1;
+        saveTasks();
+      }
+      const nextMode = (completedPomodoros % 4 === 0) ? "long" : "short";
+      setMode(nextMode);
+    } else {
+      setMode("work");
+    }
+  }
+
+  function skip() {
+    if (timerId) { clearInterval(timerId); timerId = null; }
+    finish();
+  }
+
+  let audioCtx = null;
+  function beep() {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const playTone = (when, freq) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, audioCtx.currentTime + when);
+        gain.gain.linearRampToValueAtTime(0.25, audioCtx.currentTime + when + 0.02);
+        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + when + 0.4);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(audioCtx.currentTime + when);
+        osc.stop(audioCtx.currentTime + when + 0.45);
+      };
+      playTone(0, 880);
+      playTone(0.45, 1175);
+      playTone(0.9, 1568);
+    } catch (e) { /* ignore */ }
+  }
+
+  function requestNotificationPermission() {
+    if (!("Notification" in window)) return;
+    if (Notification.permission === "default") Notification.requestPermission();
+  }
+
+  function notify() {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const title = mode === "work" ? "工作番茄结束 🎉" : "休息结束 💪";
+    const body = mode === "work" ? "起来活动一下,准备休息" : "继续投入下一个番茄";
+    try { new Notification(title, { body, silent: false }); } catch {}
+  }
+
+  // events
+  startBtn.addEventListener("click", start);
+  resetBtn.addEventListener("click", reset);
+  skipBtn.addEventListener("click", skip);
+  tabs.forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+  addBtn.addEventListener("click", addTask);
+  taskInput.addEventListener("keydown", e => { if (e.key === "Enter") addTask(); });
+
+  function addTask() {
+    const text = taskInput.value.trim();
+    if (!text) return;
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    tasks.push({ id, text, done: false, pomodoros: 0 });
+    taskInput.value = "";
+    if (!activeTaskId) { activeTaskId = id; saveActiveTaskId(); }
+    saveTasks();
+    render();
+  }
+
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT") return;
+    if (e.code === "Space") { e.preventDefault(); start(); }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
