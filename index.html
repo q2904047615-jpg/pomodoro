@@ -178,6 +178,38 @@
     color: var(--muted);
   }
   .footer-note a { color: var(--accent); }
+  /* 设置面板:默认藏起来(display:none),点⚙️设置后加上 open 类才显示 */
+  .settings-panel {
+    display: none;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px dashed var(--border);
+  }
+  .settings-panel.open { display: block; }
+  /* 每一行设置:左边文字说明、右边数字输入框 */
+  .settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-size: 14px;
+  }
+  .settings-row input {
+    width: 90px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    text-align: center;
+    outline: none;
+  }
+  .settings-row input:focus { border-color: var(--accent); }
+  .settings-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 12px;
+  }
 </style>
 </head>
 <body>
@@ -195,10 +227,30 @@
       <button class="btn-primary" id="startBtn">开始</button>
       <button class="btn-secondary" id="resetBtn">重置</button>
       <button class="btn-secondary" id="skipBtn">跳过</button>
+      <button class="btn-secondary" id="settingsBtn" title="自定义时长">⚙️ 设置</button>
     </div>
     <div class="meta">
       <span id="round">已完成 0 个番茄</span>
       <span id="currentTask">未选择任务</span>
+    </div>
+    <!-- 设置面板:三个时长输入框(单位分钟)+ 恢复默认/保存,平时折叠,点⚙️展开 -->
+    <div class="settings-panel" id="settingsPanel">
+      <div class="settings-row">
+        <label for="workInput">工作时长(分钟)</label>
+        <input id="workInput" type="number" min="1" max="180" />
+      </div>
+      <div class="settings-row">
+        <label for="shortInput">短休时长(分钟)</label>
+        <input id="shortInput" type="number" min="1" max="180" />
+      </div>
+      <div class="settings-row">
+        <label for="longInput">长休时长(分钟)</label>
+        <input id="longInput" type="number" min="1" max="180" />
+      </div>
+      <div class="settings-actions">
+        <button class="btn-secondary" id="defaultBtn">恢复默认</button>
+        <button class="btn-primary" id="saveBtn">保存</button>
+      </div>
     </div>
   </div>
 
@@ -217,8 +269,19 @@
 
 <script>
 (() => {
-  const DURATIONS = { work: 25 * 60, short: 5 * 60, long: 15 * 60 };
+  // 出厂默认时长(单位:秒)。用户自定义的存在浏览器 localStorage 里,键名 pomo_durations
+  const DEFAULT_DURATIONS = { work: 25 * 60, short: 5 * 60, long: 15 * 60 };
   const LABELS = { work: "工作", short: "短休", long: "长休" };
+
+  // 读取用户保存过的时长;没保存过或数据坏了,就退回出厂默认
+  function loadDurations() {
+    try {
+      const saved = JSON.parse(localStorage.getItem("pomo_durations") || "null");
+      if (saved && saved.work > 0 && saved.short > 0 && saved.long > 0) return saved;
+    } catch { /* 数据损坏就当没存过 */ }
+    return { ...DEFAULT_DURATIONS };
+  }
+  let DURATIONS = loadDurations();
 
   const display = document.getElementById("display");
   const startBtn = document.getElementById("startBtn");
@@ -231,6 +294,14 @@
   const addBtn = document.getElementById("addBtn");
   const taskList = document.getElementById("taskList");
   const emptyHint = document.getElementById("emptyHint");
+  // 设置面板相关的元素
+  const settingsBtn = document.getElementById("settingsBtn");
+  const settingsPanel = document.getElementById("settingsPanel");
+  const workInput = document.getElementById("workInput");
+  const shortInput = document.getElementById("shortInput");
+  const longInput = document.getElementById("longInput");
+  const saveBtn = document.getElementById("saveBtn");
+  const defaultBtn = document.getElementById("defaultBtn");
 
   let mode = "work";
   let remaining = DURATIONS[mode];
@@ -262,7 +333,11 @@
     display.textContent = format(remaining);
     document.title = `${format(remaining)} · ${LABELS[mode]} · 番茄钟`;
     document.body.classList.toggle("rest", mode !== "work");
-    tabs.forEach(b => b.classList.toggle("active", b.dataset.mode === mode));
+    tabs.forEach(b => {
+      b.classList.toggle("active", b.dataset.mode === mode);
+      // 标签文字跟着当前时长走,比如改成 30 分钟就显示"工作 30:00"
+      b.textContent = `${LABELS[b.dataset.mode]} ${format(DURATIONS[b.dataset.mode])}`;
+    });
     startBtn.textContent = timerId ? "暂停" : "开始";
     roundEl.textContent = `已完成 ${completedPomodoros} 个番茄`;
 
@@ -415,6 +490,50 @@
     const body = mode === "work" ? "起来活动一下,准备休息" : "继续投入下一个番茄";
     try { new Notification(title, { body, silent: false }); } catch {}
   }
+
+  // ===== 设置面板逻辑 =====
+  // 把输入框的值(分钟)转成秒;填了乱七八糟的就保持原值不动,并限制 1~180 分钟
+  function toSeconds(inputValue, fallbackSeconds) {
+    const n = Math.round(Number(inputValue));
+    if (!Number.isFinite(n) || n < 1) return fallbackSeconds;
+    return Math.min(n, 180) * 60;
+  }
+
+  // 打开面板时,把当前时长(秒→分钟)填进输入框给用户看
+  function fillSettingsInputs() {
+    workInput.value = Math.round(DURATIONS.work / 60);
+    shortInput.value = Math.round(DURATIONS.short / 60);
+    longInput.value = Math.round(DURATIONS.long / 60);
+  }
+
+  // 应用一套新时长:存进 localStorage;没在倒计时才立刻刷新表盘(倒计时中不打断,下一轮生效)
+  function applyDurations(next) {
+    DURATIONS = next;
+    localStorage.setItem("pomo_durations", JSON.stringify(DURATIONS));
+    if (!timerId) remaining = DURATIONS[mode];
+    render();
+  }
+
+  settingsBtn.addEventListener("click", () => {
+    const opening = !settingsPanel.classList.contains("open");
+    if (opening) fillSettingsInputs();
+    settingsPanel.classList.toggle("open", opening);
+  });
+
+  saveBtn.addEventListener("click", () => {
+    applyDurations({
+      work: toSeconds(workInput.value, DURATIONS.work),
+      short: toSeconds(shortInput.value, DURATIONS.short),
+      long: toSeconds(longInput.value, DURATIONS.long),
+    });
+    settingsPanel.classList.remove("open");
+  });
+
+  defaultBtn.addEventListener("click", () => {
+    localStorage.removeItem("pomo_durations");
+    applyDurations({ ...DEFAULT_DURATIONS });
+    fillSettingsInputs();
+  });
 
   // events
   startBtn.addEventListener("click", start);
